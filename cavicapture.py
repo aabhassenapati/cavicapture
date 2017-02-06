@@ -64,10 +64,12 @@ except KeyboardInterrupt:
 
 print("Configuring camera...")
 
-time.sleep(3) # let the lights settle
+# Set the camera to full resolution (ensure that the memory split allocation has been increased to 256mb - see README)
+camera.resolution = (2592, 1944)
+camera.framerate = 15
 
 # Basic settings
-camera.color_effects = (128,128) # black and whtie
+camera.color_effects = (128,128) # black and white
 
 # Wait for automatic gain control to settle
 time.sleep(2)
