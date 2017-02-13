@@ -9,13 +9,14 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-inst = "cavicapture.py -i <interval,sec> -d <duration,sec> -s <shutterspeed,ms> -I <iso>"
+inst = "cavicapture.py -i <interval,sec> -d <duration,sec> -s <shutterspeed,ms> -I <iso> -D"
 
 shutter_speed = 0
 ISO = 0
+save_diff = False
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:], "hi:d:s:I", ["interval=","duration=","shutterspeed=","ISO="])
+    opts, args = getopt.getopt(sys.argv[1:], "hi:d:s:I:D", ["interval=","duration=","shutterspeed=","ISO=", "savediff="])
 except getopt.GetoptError:
     sys.exit(2)
 for opt, arg in opts:
@@ -25,6 +26,9 @@ for opt, arg in opts:
         interval = int(arg)
     elif opt in ("-d", "--duration"):
         duration = int(arg)
+    elif opt in ("-D", "--savediff"):
+        if arg.lower() == 'on':
+            save_diff = True
     elif opt in ("-s", "--shutterspeed"):
         shutter_speed = int(arg)
     elif opt in ("-I", "--ISO"):
@@ -127,7 +131,8 @@ try:
             diff_sum = diff.sum()
             max_diff = max((max_diff, diff_sum))
 
-            cv2.imwrite("diff_" + filename, diff)
+            if save_diff:
+                cv2.imwrite("diff_" + filename, diff)
 
             plt.scatter(image_n, diff_sum)
 
@@ -147,12 +152,17 @@ try:
         # Wait interval
         time.sleep(interval)
         image_n += 1
-except IOError as e:
-    print "I/O error({0}): {1}".format(e.errno, e.strerror)
-    GPIO.output(7, False)
-except:
-    print "Error:", sys.exc_info()[0]
-    GPIO.output(7, False)
 
-plt.savefig('intensities.png')
-print("Sequence complete.")
+    plt.savefig('intensities.png')
+    print("Sequence completed.")
+
+except KeyboardInterrupt:
+    GPIO.output(7, False)
+    plt.savefig('intensities.png')
+    print("Sequence terminated by user.")
+except IOError as e:
+    GPIO.output(7, False)
+    print "I/O error({0}): {1}".format(e.errno, e.strerror)
+except:
+    GPIO.output(7, False)
+    print "Error:", sys.exc_info()[0]
