@@ -148,7 +148,8 @@ try:
         time.sleep(interval)
         image_n += 1
 
-except KeyboardInterrupt:
+except:
+    print "Error:", sys.exc_info()[0]
     GPIO.output(7, False)
 
 plt.savefig('intensities.png')
