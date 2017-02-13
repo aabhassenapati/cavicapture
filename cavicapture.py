@@ -147,7 +147,9 @@ try:
         # Wait interval
         time.sleep(interval)
         image_n += 1
-
+except IOError as e:
+    print "I/O error({0}): {1}".format(e.errno, e.strerror)
+    GPIO.output(7, False)
 except:
     print "Error:", sys.exc_info()[0]
     GPIO.output(7, False)
