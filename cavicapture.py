@@ -14,9 +14,10 @@ inst = "cavicapture.py -i <interval,sec> -d <duration,sec> -s <shutterspeed,ms> 
 shutter_speed = 0
 ISO = 0
 save_diff = False
+setup_mode = False
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:], "hi:d:s:I:D", ["interval=","duration=","shutterspeed=","ISO=", "savediff="])
+    opts, args = getopt.getopt(sys.argv[1:], "hi:d:s:S:I:D", ["interval=","duration=","shutterspeed=","setup=", "ISO=", "savediff="])
 except getopt.GetoptError:
     sys.exit(2)
 for opt, arg in opts:
@@ -26,6 +27,8 @@ for opt, arg in opts:
         interval = int(arg)
     elif opt in ("-d", "--duration"):
         duration = int(arg)
+    elif opt in ("-S", "--setup"):
+        setup_mode = True
     elif opt in ("-D", "--savediff"):
         if arg.lower() == 'on':
             save_diff = True
@@ -54,7 +57,10 @@ GPIO.setmode(GPIO.BOARD)
 GPIO.setup(7, GPIO.OUT)
 
 # Start configuration
-raw_input("Press ENTER to start preparing sample (align, focus etc). Preview window will show. Press ENTER when finished (or CTRL-C to cancel).")
+if setup_mode:
+    raw_input("Press ENTER to show preview. Press ENTER when finished.")
+else:
+    raw_input("Press ENTER to start preparing sample (align, focus etc). Preview window will show. Press ENTER when finished (or CTRL-C to cancel).")
 
 try:
     GPIO.output(7, True)
@@ -63,6 +69,10 @@ try:
     camera.stop_preview()
 except KeyboardInterrupt:
     camera.stop_preview()
+    GPIO.output(7, False)
+    sys.exit(2)
+
+if setup_mode:
     GPIO.output(7, False)
     sys.exit(2)
 
