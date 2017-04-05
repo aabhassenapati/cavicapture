@@ -99,6 +99,15 @@ current_gains = camera.awb_gains
 camera.awb_mode = 'off'
 camera.awb_gains = current_gains
 
+#Save capture parameters to file
+params = open('params.txt', 'a');
+params.write('start: '+datetime.datetime.now().strftime('%Y%m%d-%H%M%S')+'\n');
+params.write('interval (s): %d\n' % interval);
+params.write('duration (s): %d\n' % duration);
+params.write('shutter speed (ms): %d\n' % camera.shutter_speed);
+params.write('\n\n');
+params.close();
+
 print("Configuration complete. Running sequence.")
 
 last_file = ''
