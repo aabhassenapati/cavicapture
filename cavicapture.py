@@ -7,7 +7,6 @@ import sys
 import getopt
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 
 inst = "cavicapture.py -i <interval,sec> -d <duration,sec> -s <shutterspeed,ms> -I <iso> -D"
 
@@ -83,7 +82,7 @@ camera.resolution = (2592, 1944)
 camera.framerate = 15
 
 # Basic settings
-camera.color_effects = (128,128) # black and white
+# camera.color_effects = (128,128) # black and white
 
 # Wait for automatic gain control to settle
 time.sleep(2)
@@ -115,10 +114,6 @@ last_diff_sum = 0
 max_diff = 0
 image_n = 1
 
-# Init plot
-plt.axis([0, 25, 0, 1])
-plt.ion()
-
 # Main loop
 seq_end = time.time() + duration
 
@@ -141,43 +136,16 @@ try:
         # Turn LEDs off
         GPIO.output(7, False)
 
-        # calculate image difference
-        if last_file:
-            img_1 = cv2.imread(last_file)
-            img_2 = cv2.imread(filename)
-            diff = cv2.subtract(img_2, img_1)
-
-            diff_sum = diff.sum()
-            max_diff = max((max_diff, diff_sum))
-
-            if save_diff:
-                cv2.imwrite("diff_" + filename, diff)
-
-            plt.scatter(image_n, diff_sum)
-
-            plt.ylim((0, max_diff + (max_diff * 0.1)))
-
-            if image_n > 20:
-                plt.xlim((0, image_n + 5))
-
-            plt.pause(0.05)
-
-            print("Diff -> sum pixel intensities: " + str(diff_sum))
-
-            last_diff_sum = diff_sum
-
         last_file = filename
 
         # Wait interval
         time.sleep(interval)
         image_n += 1
 
-    plt.savefig('intensities.png')
     print("Sequence completed.")
 
 except KeyboardInterrupt:
     GPIO.output(7, False)
-    plt.savefig('intensities.png')
     print("Sequence terminated by user.")
 except IOError as e:
     GPIO.output(7, False)
