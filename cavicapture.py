@@ -5,19 +5,15 @@ import picamera
 import time, datetime
 import sys
 import getopt
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
 
-inst = "cavicapture.py -i <interval,sec> -d <duration,sec> -s <shutterspeed,ms> -I <iso> -D"
+inst = "cavicapture.py -i <interval,sec> -d <duration,sec> -s <shutterspeed,ms> -I <iso>"
 
 shutter_speed = 0
 ISO = 0
-save_diff = False
 setup_mode = False
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:], "hi:d:s:S:I:D", ["interval=","duration=","shutterspeed=","setup=", "ISO=", "savediff="])
+    opts, args = getopt.getopt(sys.argv[1:], "hi:d:s:S:I", ["interval=","duration=","shutterspeed=","setup=", "ISO="])
 except getopt.GetoptError:
     sys.exit(2)
 for opt, arg in opts:
@@ -29,9 +25,6 @@ for opt, arg in opts:
         duration = int(arg)
     elif opt in ("-S", "--setup"):
         setup_mode = True
-    elif opt in ("-D", "--savediff"):
-        if arg.lower() == 'on':
-            save_diff = True
     elif opt in ("-s", "--shutterspeed"):
         shutter_speed = int(arg)
     elif opt in ("-I", "--ISO"):
@@ -82,9 +75,6 @@ print("Configuring camera...")
 camera.resolution = (2592, 1944)
 camera.framerate = 15
 
-# Basic settings
-camera.color_effects = (128,128) # black and white
-
 # Wait for automatic gain control to settle
 time.sleep(2)
 
@@ -99,7 +89,7 @@ current_gains = camera.awb_gains
 camera.awb_mode = 'off'
 camera.awb_gains = current_gains
 
-#Save capture parameters to file
+# Save capture parameters to file
 params = open('params.txt', 'a');
 params.write('start: '+datetime.datetime.now().strftime('%Y%m%d-%H%M%S')+'\n');
 params.write('interval (s): %d\n' % interval);
@@ -109,15 +99,6 @@ params.write('\n\n');
 params.close();
 
 print("Configuration complete. Running sequence.")
-
-last_file = ''
-last_diff_sum = 0
-max_diff = 0
-image_n = 1
-
-# Init plot
-plt.axis([0, 25, 0, 1])
-plt.ion()
 
 # Main loop
 seq_end = time.time() + duration
@@ -133,51 +114,20 @@ try:
         time.sleep(3)
 
         # Take picture
-        # camera.start_preview()
         camera.capture(filename, 'png')
         time.sleep(3)
-        # camera.stop_preview()
 
         # Turn LEDs off
         GPIO.output(7, False)
-
-        # calculate image difference
-        if last_file:
-            img_1 = cv2.imread(last_file)
-            img_2 = cv2.imread(filename)
-            diff = cv2.subtract(img_2, img_1)
-
-            diff_sum = diff.sum()
-            max_diff = max((max_diff, diff_sum))
-
-            if save_diff:
-                cv2.imwrite("diff_" + filename, diff)
-
-            plt.scatter(image_n, diff_sum)
-
-            plt.ylim((0, max_diff + (max_diff * 0.1)))
-
-            if image_n > 20:
-                plt.xlim((0, image_n + 5))
-
-            plt.pause(0.05)
-
-            print("Diff -> sum pixel intensities: " + str(diff_sum))
-
-            last_diff_sum = diff_sum
-
-        last_file = filename
 
         # Wait interval
         time.sleep(interval)
         image_n += 1
 
-    plt.savefig('intensities.png')
     print("Sequence completed.")
 
 except KeyboardInterrupt:
     GPIO.output(7, False)
-    plt.savefig('intensities.png')
     print("Sequence terminated by user.")
 except IOError as e:
     GPIO.output(7, False)
