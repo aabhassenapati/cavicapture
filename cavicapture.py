@@ -5,11 +5,6 @@ import picamera
 import time, datetime
 import sys
 import getopt
-<<<<<<< HEAD
-=======
-import cv2
-import numpy as np
->>>>>>> f37644905b46349cfbfc87f9d3c143b73b170f2c
 
 inst = "cavicapture.py -i <interval,sec> -d <duration,sec> -s <shutterspeed,ms> -I <iso>"
 
@@ -80,12 +75,6 @@ print("Configuring camera...")
 camera.resolution = (2592, 1944)
 camera.framerate = 15
 
-<<<<<<< HEAD
-=======
-# Basic settings
-# camera.color_effects = (128,128) # black and white
-
->>>>>>> f37644905b46349cfbfc87f9d3c143b73b170f2c
 # Wait for automatic gain control to settle
 time.sleep(2)
 
@@ -111,14 +100,6 @@ params.close();
 
 print("Configuration complete. Running sequence.")
 
-<<<<<<< HEAD
-=======
-last_file = ''
-last_diff_sum = 0
-max_diff = 0
-image_n = 1
-
->>>>>>> f37644905b46349cfbfc87f9d3c143b73b170f2c
 # Main loop
 seq_end = time.time() + duration
 
@@ -139,11 +120,6 @@ try:
         # Turn LEDs off
         GPIO.output(7, False)
 
-<<<<<<< HEAD
-=======
-        last_file = filename
-
->>>>>>> f37644905b46349cfbfc87f9d3c143b73b170f2c
         # Wait interval
         time.sleep(interval)
         image_n += 1
