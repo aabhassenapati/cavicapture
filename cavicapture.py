@@ -122,7 +122,6 @@ try:
 
         # Wait interval
         time.sleep(interval)
-        image_n += 1
 
     print("Sequence completed.")
 
