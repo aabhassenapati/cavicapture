@@ -13,7 +13,7 @@ ISO = 0
 setup_mode = False
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:], "hi:d:s:S:I", ["interval=","duration=","shutterspeed=","setup=", "ISO="])
+    opts, args = getopt.getopt(sys.argv[1:], "hi:d:s:S:I", ["interval=","duration=","shutterspeed=","setup", "ISO="])
 except getopt.GetoptError:
     sys.exit(2)
 for opt, arg in opts:
@@ -31,32 +31,48 @@ for opt, arg in opts:
         ISO = int(arg)
 
 
-# Get camera
-camera = picamera.PiCamera()
-
-max_intensity = camera.resolution.height * camera.resolution.width * 255
-
-if ISO:
-    camera.ISO = ISO
-else:
-    camera.ISO = 100
-
-if shutter_speed:
-    camera.shutter_speed = shutter_speed
-
 # GPIO setup
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(7, GPIO.OUT)
 
+# Turn the light on 
+GPIO.output(7, True)
+
+# Get camera
+print("\nConfiguring camera...")
+camera = picamera.PiCamera(resolution=(2592, 1944), framerate=15)
+
+max_intensity = camera.resolution.height * camera.resolution.width * 255
+
+if ISO:
+    camera.iso = ISO
+else:
+    camera.iso = 100
+
+time.sleep(2)
+
+print("Auto (current) shutter speed: %d" % camera.exposure_speed)
+
+if shutter_speed:
+    print("Setting shutter speed to: ~%d" % shutter_speed)
+    camera_shutter_speed = shutter_speed
+else:
+    camera_shutter_speed = camera.exposure_speed
+
+camera.shutter_speed = camera_shutter_speed
+camera.exposure_mode = 'off'
+current_gains = camera.awb_gains
+camera.awb_mode = 'off'
+camera.awb_gains = current_gains
+
 # Start configuration
 if setup_mode:
-    raw_input("Press ENTER to show preview. Press ENTER when finished.")
+    raw_input("\n\nPress ENTER to show preview. Press ENTER when finished.")
 else:
-    raw_input("Press ENTER to start preparing sample (align, focus etc). Preview window will show. Press ENTER when finished (or CTRL-C to cancel).")
+    raw_input("\n\nPress ENTER to start preparing sample (align, focus etc). Preview window will show. Press ENTER when finished (or CTRL-C to cancel).")
 
 try:
-    GPIO.output(7, True)
     camera.start_preview()
     raw_input("Press ENTER to continue (or CTRL-C to cancel)...")
     camera.stop_preview()
@@ -69,32 +85,12 @@ if setup_mode:
     GPIO.output(7, False)
     sys.exit(2)
 
-print("Configuring camera...")
-
-# Set the camera to full resolution (ensure that the memory split allocation has been increased to 256mb - see README)
-camera.resolution = (2592, 1944)
-camera.framerate = 15
-
-# Wait for automatic gain control to settle
-time.sleep(2)
-
-# Set the fixed values to automatic values if no shutter speed provided
-if not shutter_speed:
-    camera.shutter_speed = camera.exposure_speed
-    camera.exposure_mode = 'off'
-
-# Get the current automatically determined gains before we turn
-# gains off..
-current_gains = camera.awb_gains
-camera.awb_mode = 'off'
-camera.awb_gains = current_gains
-
 # Save capture parameters to file
 params = open('params.txt', 'a');
 params.write('start: '+datetime.datetime.now().strftime('%Y%m%d-%H%M%S')+'\n');
 params.write('interval (s): %d\n' % interval);
 params.write('duration (s): %d\n' % duration);
-params.write('shutter speed (ms): %d\n' % camera.shutter_speed);
+params.write('shutter speed (ms): %d\n' % camera.exposure_speed);
 params.write('\n\n');
 params.close();
 
@@ -107,16 +103,19 @@ try:
     while time.time() < seq_end:
 
         filename = datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + ".png"
-        print("Capturing " + filename)
 
         # Turn LEDs on
         GPIO.output(7, True)
-        time.sleep(3)
+        time.sleep(2)
 
+        # Fix the shutter speed
+        camera.shutter_speed = camera_shutter_speed
+
+        print("Capturing " + filename)
         # Take picture
         camera.capture(filename, 'png')
         time.sleep(3)
-
+        
         # Turn LEDs off
         GPIO.output(7, False)
 
