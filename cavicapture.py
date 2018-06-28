@@ -1,135 +1,324 @@
 #!/usr/bin/python
 
+from ConfigParser import SafeConfigParser
+from shutil import copyfile
+
+import time, datetime
+import sys, os, getopt
+import numpy as np
+import matplotlib.pyplot as plt
 import RPi.GPIO as GPIO
 import picamera
-import time, datetime
-import sys
-import getopt
+import subprocess
+import cv2
+import sqlite3
 
-inst = "cavicapture.py -i <interval,sec> -d <duration,sec> -s <shutterspeed,ms> -I <iso>"
+def main():
 
-shutter_speed = 0
-ISO = 0
-setup_mode = False
+    generate_preview = False
 
-try:
-    opts, args = getopt.getopt(sys.argv[1:], "hi:d:s:S:I", ["interval=","duration=","shutterspeed=","setup", "ISO="])
-except getopt.GetoptError:
-    sys.exit(2)
-for opt, arg in opts:
-    if opt == '-h':
-        sys.exit()
-    elif opt in ("-i", "--interval"):
-        interval = int(arg)
-    elif opt in ("-d", "--duration"):
-        duration = int(arg)
-    elif opt in ("-S", "--setup"):
-        setup_mode = True
-    elif opt in ("-s", "--shutterspeed"):
-        shutter_speed = int(arg)
-    elif opt in ("-I", "--ISO"):
-        ISO = int(arg)
+    try:
+      opts, args = getopt.getopt(sys.argv[1:], "c:p", ["config=", "preview"])
+    except getopt.GetoptError:
+      print("cavicapture.py --config <path/to/config.ini> --preview")
+      sys.exit(2)
+    for opt, arg in opts:
+      if opt in ("--config"):
+        config_path = arg
+      elif opt in ("--preview"):
+        generate_preview = True
+      
+    cavi_capture = CaviCapture(config_path)
+    if generate_preview:
+      cavi_capture.generate_preview()
+    else:
+      cavi_capture.start()
 
+class CaviCapture:
+  
+  def __init__(self, config_file):
+      
+    self.config_file = config_file
+    self.current_capture = False
+    self.capture_timestamp = ""
+    self.load_config()
+    self.setup_gpio()
+    self.create_directories()    
+    self.log_file = self.sequence_path + "log.txt"
+    self.setup_db()
 
-# GPIO setup
-GPIO.setwarnings(False)
-GPIO.setmode(GPIO.BOARD)
-GPIO.setup(7, GPIO.OUT)
+  def load_config(self):
 
-# Turn the light on 
-GPIO.output(7, True)
+    config = SafeConfigParser()
+    config.read(self.config_file)
 
-# Get camera
-print("\nConfiguring camera...")
-camera = picamera.PiCamera(resolution=(2592, 1944), framerate=15)
+    print "Reading from config file: " + self.config_file
 
-max_intensity = camera.resolution.height * camera.resolution.width * 255
+    # Camera config
+    self.camera_ISO                 = config.getint('camera', 'ISO')
+    self.camera_shutter_speed       = config.get('camera', 'shutter_speed')
 
-if ISO:
-    camera.iso = ISO
-else:
-    camera.iso = 100
+    # Capture config
+    self.capture_duration           = config.getfloat('capture', 'duration') 
+    self.capture_interval           = config.getint('capture', 'interval')
+    self.output_dir                 = config.get('capture', 'output_dir')
+    self.capture_sequence_name      = config.get('capture', 'sequence_name')
+    self.resolution                 = config.get('capture', 'resolution')
+    self.verbose                    = config.getboolean('capture', 'verbose')
+    self.crop_enabled               = config.getboolean('capture', 'crop_enabled')
 
-time.sleep(2)
+    crop_string = config.get('capture', 'crop')
+    self.crop = tuple([float(n) for n in crop_string.split(",")])
+    
+    # Pi config
+    self.pi_GPIO_light_channel    = config.getint('pi', 'GPIO_light_channel')
+  
+  def generate_preview(self):
+    self.log_file = self.sequence_path + "log.txt"
+    self.setup_camera()
+    self.log_config()
+    self.log_info("Generating preview")
+    self.lights(True)
+    self.camera.capture(self.sequence_path + "preview.png", "png")
+    self.lights(False)
+    
+  def start(self):
 
-print("Auto (current) shutter speed: %d" % camera.exposure_speed)
+    self.setup_camera()
+    self.log_config()
 
-if shutter_speed:
-    print("Setting shutter speed to: ~%d" % shutter_speed)
-    camera_shutter_speed = shutter_speed
-else:
-    camera_shutter_speed = camera.exposure_speed
+    capture_time_end = time.time() + (self.capture_duration * 3600)
 
-camera.shutter_speed = camera_shutter_speed
-camera.exposure_mode = 'off'
-current_gains = camera.awb_gains
-camera.awb_mode = 'off'
-camera.awb_gains = current_gains
+    first_run = True
 
-# Start configuration
-if setup_mode:
-    raw_input("\n\nPress ENTER to show preview. Press ENTER when finished.")
-else:
-    raw_input("\n\nPress ENTER to start preparing sample (align, focus etc). Preview window will show. Press ENTER when finished (or CTRL-C to cancel).")
+    try:
+      while time.time() < capture_time_end:        
 
-try:
-    camera.start_preview()
-    raw_input("Press ENTER to continue (or CTRL-C to cancel)...")
-    camera.stop_preview()
-except KeyboardInterrupt:
-    camera.stop_preview()
-    GPIO.output(7, False)
-    sys.exit(2)
-
-if setup_mode:
-    GPIO.output(7, False)
-    sys.exit(2)
-
-# Save capture parameters to file
-params = open('params.txt', 'a');
-params.write('start: '+datetime.datetime.now().strftime('%Y%m%d-%H%M%S')+'\n');
-params.write('interval (s): %d\n' % interval);
-params.write('duration (s): %d\n' % duration);
-params.write('shutter speed (ms): %d\n' % camera.exposure_speed);
-params.write('\n\n');
-params.close();
-
-print("Configuration complete. Running sequence.")
-
-# Main loop
-seq_end = time.time() + duration
-
-try:
-    while time.time() < seq_end:
-
-        filename = datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + ".png"
-
-        # Turn LEDs on
-        GPIO.output(7, True)
-        time.sleep(2)
-
-        # Fix the shutter speed
-        camera.shutter_speed = camera_shutter_speed
-
-        print("Capturing " + filename)
-        # Take picture
-        camera.capture(filename, 'png')
-        time.sleep(3)
+        self.capture_timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        output_filename = self.capture_timestamp + ".png"
+        self.log_info("Capturing " + output_filename)
+        self.lights(True)
+        self.capture(output_filename)
+        self.lights(False)
         
-        # Turn LEDs off
-        GPIO.output(7, False)
+        time.sleep(self.capture_interval)
 
-        # Wait interval
-        time.sleep(interval)
+    except KeyboardInterrupt:
+      self.lights(False)
+      self.log_info("Sequence terminated by user.")
+    except IOError as e:
+      self.lights(False)
+      self.log_error("I/O error({0}): {1}".format(e.errno, e.strerror))
+    except:
+      self.lights(False)
+      self.log_error(str(sys.exc_info()[0]))
+    
+    self.db_conn.close()
 
-    print("Sequence completed.")
 
-except KeyboardInterrupt:
-    GPIO.output(7, False)
-    print("Sequence terminated by user.")
-except IOError as e:
-    GPIO.output(7, False)
-    print "I/O error({0}): {1}".format(e.errno, e.strerror)
-except:
-    GPIO.output(7, False)
-    print "Error:", sys.exc_info()[0]
+  def capture(self, output_filename):
+    self.camera.capture(self.sequence_path + output_filename, "png")      
+    
+    if self.crop_enabled == True and len(self.crop) == 4: # crop to roi...
+      capture = cv2.imread(self.sequence_path + output_filename)
+
+      img_width = int(capture.shape[1])
+      img_height = int(capture.shape[0])
+
+      height_rel_image_height = self.crop[0]
+      width_rel_image_width = self.crop[1]
+      top_rel_image_height = self.crop[2]
+      left_rel_image_width = self.crop[3]
+
+      start_x = left_rel_image_width * img_width
+      end_x = start_x + (width_rel_image_width * img_width)
+      start_y = top_rel_image_height * img_height
+      end_y = start_y + (height_rel_image_height * img_height)
+
+      cv2.imwrite(self.sequence_path + output_filename, capture[start_y:end_y, start_x:end_x])
+
+    record_inserted = False
+    while record_inserted == False:
+      try:
+        sql = "INSERT INTO captures (filename, timestamp, skip, processing, processed) VALUES ('" + output_filename + "', '" + self.capture_timestamp + "', 0, 0, 0);"
+        self.db_conn.execute(sql)
+        self.db_conn.commit()
+        record_inserted = True
+      except sqlite3.OperationalError:
+        self.log_info("database locked - trying again in 1 second")
+        time.sleep(1)
+
+  def log_config(self):
+    self.log_info("Config file: " + self.config_file)
+    self.log_info("Verbose: " + str(self.verbose))
+    self.log_info("Camera ISO: " + str(self.camera_ISO))
+    self.log_info("Camera Shutterspeed: " + str(self.camera_shutter_speed))
+    self.log_info("Capture Duration: " + str(self.capture_duration))
+    self.log_info("Capture Interval: " + str(self.capture_interval))
+    self.log_info("Output Dir: " + str(self.output_dir))
+    self.log_info("Capture Sequence Name: " + str(self.capture_sequence_name))
+    self.log_info("GPIO Light Channel: " + str(self.pi_GPIO_light_channel))
+    self.log_info("Resolution: " + str(self.resolution))
+
+  def setup_camera(self):
+
+    # Get camera
+    self.camera = picamera.PiCamera()
+
+    self.camera.ISO = self.camera_ISO
+    self.camera.framerate = 15
+    
+    if not self.camera_shutter_speed == 'auto':
+      self.camera.shutter_speed = int(self.camera_shutter_speed)
+
+    self.lights(True)
+
+    self.log_info("Configuring camera...")
+
+    # Wait for automatic gain control to settle
+    time.sleep(2)
+
+    # Set the fixed values to automatic values if no shutter speed provided
+    if self.camera_shutter_speed == "auto":
+      self.camera.shutter_speed = self.camera.exposure_speed
+      self.camera.exposure_mode = "off"
+
+    # Get the current automatically determined gains before we turn gains off..
+    self.current_gains = self.camera.awb_gains
+    
+    self.camera.awb_mode = "off"
+    self.camera.awb_gains = self.current_gains
+
+    self.lights(False)
+
+    if(self.resolution == 'Max'):
+      self.camera.resolution = (2592, 1944)
+    elif(self.resolution == 'Large'):
+      self.camera.resolution = (1920, 1080)
+    elif(self.resolution == 'Medium'):
+      self.camera.resolution = (1296, 972)
+    elif(self.resolution == 'Small'):
+      self.camera.resolution = (640, 480)
+    else:
+      self.camera.resolution = (640, 480)
+
+    self.log_info("Configuration complete.")
+
+  def setup_gpio(self):
+
+    # GPIO setup
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BOARD)
+    GPIO.setup(self.pi_GPIO_light_channel, GPIO.OUT)
+
+  def create_directories(self):
+
+    if not self.output_dir.endswith("/"):
+      self.output_dir = self.output_dir + "/"
+
+    if not os.path.exists(self.output_dir):
+      os.makedirs(self.output_dir)
+
+    self.sequence_path = self.output_dir + self.capture_sequence_name + "/"
+
+    if not os.path.exists(self.sequence_path):
+        os.makedirs(self.sequence_path)
+
+    self.processed_path = self.sequence_path + "processed/"
+
+    if not os.path.exists(self.processed_path):
+        os.makedirs(self.processed_path)
+
+  def setup_db(self):
+    self.db_conn = sqlite3.connect(self.sequence_path + 'capture.db')
+    self.db_conn.execute('''CREATE TABLE IF NOT EXISTS captures
+            (id INTEGER PRIMARY KEY,
+            filename CHAR(50) NOT NULL,
+            timestamp CHAR(50) NOT NULL,
+            skip INT NOT NULL,
+            processed INT NOT NULL,
+            processing INT NOT NULL,
+            area REAL);''')
+
+    self.log_db('Databased Opened')
+
+  def lights(self, active):
+
+    if active:
+      GPIO.output(self.pi_GPIO_light_channel, True)
+      time.sleep(3)
+    else:
+      GPIO.output(self.pi_GPIO_light_channel, False)
+
+  def log_info(self, entry):
+    self.log(str(entry))
+    if(self.verbose):
+      print 'info|' + str(entry)
+      sys.stdout.flush()
+
+  def log_error(self, entry):
+    self.log(str(entry))
+    if(self.verbose):
+      print 'error|' + str(entry)
+      sys.stdout.flush()
+
+  def log_db(self, entry):
+    self.log(str(entry))
+    if(self.verbose):
+      print 'db|' + str(entry)
+      sys.stdout.flush()
+
+  def log(self, entry):
+    log = open(self.log_file, 'a')  
+    log.write(str(entry) + '\n')
+    log.close()
+
+if __name__ == '__main__':
+    main()
+
+
+
+
+
+
+
+
+
+
+
+
+  # def summarise_pixels(self, img, hist_path):
+
+  #   average_pixel = np.average(img[img>0])
+  #   max_pixel = np.max(img[img>0])
+  #   min_pixel = np.min(img[img>0])
+  #   total_area = len(img[img>0])
+
+  #   self.log_info("Noise max: " + str(max_pixel))
+  #   self.log_info("Noise min: " + str(min_pixel))
+  #   self.log_info("Noise average: " + str(average_pixel))
+  #   self.log_info("Noise area: " + str(total_area))
+    
+  #   plt.figure()
+  #   plt.hist(img.ravel(),max_pixel,[min_pixel,max_pixel])
+  #   plt.savefig(hist_path)
+  #   plt.close()
+
+  #   return average_pixel, max_pixel, min_pixel, total_area
+
+
+  # def process_files(self, file_1, file_2, filter_max):
+  #   self.log_info("Processing files " + file_1 + ", " + file_2)
+  #   args = ['sudo', self.processor]
+  #   args.append('--i1')
+  #   args.append(file_1)
+  #   args.append('--i2')
+  #   args.append(file_2)
+  #   args.append('--config')
+  #   args.append(self.config_file)
+  #   self.log_info(args)
+
+  #   proc = subprocess.Popen(args,stdout=subprocess.PIPE)
+  #   for line in iter(proc.stdout.readline,''):
+  #     print line.rstrip()
+  #     sys.stdout.flush()
