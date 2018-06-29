@@ -1,15 +1,11 @@
 #!/usr/bin/python
 
 from ConfigParser import SafeConfigParser
-from shutil import copyfile
 
 import time, datetime
 import sys, os, getopt
-import numpy as np
-import matplotlib.pyplot as plt
 import RPi.GPIO as GPIO
 import picamera
-import subprocess
 import cv2
 import sqlite3
 
@@ -275,50 +271,3 @@ class CaviCapture:
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-  # def summarise_pixels(self, img, hist_path):
-
-  #   average_pixel = np.average(img[img>0])
-  #   max_pixel = np.max(img[img>0])
-  #   min_pixel = np.min(img[img>0])
-  #   total_area = len(img[img>0])
-
-  #   self.log_info("Noise max: " + str(max_pixel))
-  #   self.log_info("Noise min: " + str(min_pixel))
-  #   self.log_info("Noise average: " + str(average_pixel))
-  #   self.log_info("Noise area: " + str(total_area))
-    
-  #   plt.figure()
-  #   plt.hist(img.ravel(),max_pixel,[min_pixel,max_pixel])
-  #   plt.savefig(hist_path)
-  #   plt.close()
-
-  #   return average_pixel, max_pixel, min_pixel, total_area
-
-
-  # def process_files(self, file_1, file_2, filter_max):
-  #   self.log_info("Processing files " + file_1 + ", " + file_2)
-  #   args = ['sudo', self.processor]
-  #   args.append('--i1')
-  #   args.append(file_1)
-  #   args.append('--i2')
-  #   args.append(file_2)
-  #   args.append('--config')
-  #   args.append(self.config_file)
-  #   self.log_info(args)
-
-  #   proc = subprocess.Popen(args,stdout=subprocess.PIPE)
-  #   for line in iter(proc.stdout.readline,''):
-  #     print line.rstrip()
-  #     sys.stdout.flush()
