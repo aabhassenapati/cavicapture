@@ -234,7 +234,7 @@ class CaviProcess:
     # Remove outliers
     if self.outlier_removal_enabled:
       self.start_timer()
-      output, blurred_image = self.median_filter_using_median_blur("bright", 3, output)
+      output, blurred_image = self.median_filter_using_median_blur(3, output)
       if self.intermediates_enabled:
         self.write_image(intermediates_path + self.output_filename + "_median_blurred.png", blurred_image)
         self.write_image(intermediates_path + self.output_filename + "_outliers_removed.png", output)
@@ -315,52 +315,12 @@ class CaviProcess:
     return cv2.addWeighted(img_1, 0.5, img_2, 0.5, 0)
 
   def filter_pixels(self, image):
-
-    img_width = int(image.shape[1])
-    img_height = int(image.shape[0])
-
-    filter_count = 0
-
-    for y in range(0, img_height):
-      for x in range(0, img_width):
-        if image[y,x] < self.filter_threshold:
-          image[y,x] = 0
-          filter_count += 1
-    
+    image[image<self.filter_threshold] = 0
     return image
 
-  def median_filter_using_median_blur(self, bright_or_dark, radius, image):
-    
-    counter = 0
-
-    output = image.copy()
-    median_blurred_image = cv2.medianBlur(output, radius)
-
-    img_width = int(image.shape[1])
-    img_height = int(image.shape[0])
-
-    median_radius_max = radius
-    median_radius_min = radius * -1
-
-    #run comparison loop
-    for y in range(0, img_height):
-      for x in range(0, img_width):
-        
-        surrounding_pixel_values = []
-        
-        surrounding_pixel_median = median_blurred_image[y,x]
-          
-        if(bright_or_dark=="dark" or bright_or_dark=="both"):
-          if(surrounding_pixel_median >= image[y,x]):
-            output[y,x] = surrounding_pixel_median
-            counter += 1
-          
-        if(bright_or_dark=="bright" or bright_or_dark=="both"):
-          if(surrounding_pixel_median <= image[y,x]):
-            output[y,x] = surrounding_pixel_median
-            counter += 1
-
-    return output, median_blurred_image
+  def median_filter_using_median_blur(self, radius, image):
+    median_blurred_image = cv2.medianBlur(image, radius)
+    return cv2.min(image, median_blurred_image), median_blurred_image
 
   def log(self, entry):
     log = open(self.log_file, 'a')  
