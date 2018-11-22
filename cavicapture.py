@@ -8,6 +8,7 @@ import RPi.GPIO as GPIO
 import picamera
 import cv2
 import sqlite3
+import subprocess
 
 def main():
 
@@ -214,16 +215,22 @@ class CaviCapture:
 
     if not os.path.exists(self.output_dir):
       os.makedirs(self.output_dir)
+      subprocess.call(['setfacl', '-Rm', 'g:pi:rwX', self.output_dir])
+      subprocess.call(['setfacl', '-d', '-Rm', 'g:pi:rwX', self.output_dir])
 
     self.sequence_path = self.output_dir + self.capture_sequence_name + "/"
 
     if not os.path.exists(self.sequence_path):
         os.makedirs(self.sequence_path)
+        subprocess.call(['setfacl', '-Rm', 'g:pi:rwX', self.sequence_path])
+        subprocess.call(['setfacl', '-d', '-Rm', 'g:pi:rwX', self.sequence_path])
 
     self.processed_path = self.sequence_path + "processed/"
 
     if not os.path.exists(self.processed_path):
         os.makedirs(self.processed_path)
+        subprocess.call(['setfacl', '-Rm', 'g:pi:rwX', self.processed_path])
+        subprocess.call(['setfacl', '-d', '-Rm', 'g:pi:rwX', self.processed_path])
 
   def setup_db(self):
     self.db_conn = sqlite3.connect(self.sequence_path + 'capture.db')
