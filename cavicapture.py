@@ -9,11 +9,21 @@ import picamera
 import cv2
 import sqlite3
 import subprocess
+import argparse
 
 def main():
 
     generate_preview = False
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--config', help='Location of configuration file')
+    parser.add_argument('-p', '--preview', action='store_true', help='Generate a preview')
+    parser.add_argument('-l', '--light', help='Turn light on or off', type=bool)
+    parser.add_argument('-o', '--on', action='store_true', help='set light on')
+    parser.add_argument('-f', '--off', action='store_true', help='set light off')
+
+    args = parser.parse_args()
+    
     try:
       opts, args = getopt.getopt(sys.argv[1:], "c:p", ["config=", "preview"])
     except getopt.GetoptError:
@@ -25,9 +35,14 @@ def main():
       elif opt in ("--preview"):
         generate_preview = True
       
-    cavi_capture = CaviCapture(config_path)
-    if generate_preview:
+    cavi_capture = CaviCapture(args.config)
+    if args.preview:
       cavi_capture.generate_preview()
+    elif args.light:
+      if args.on:
+        cavi_capture.lights(True)
+      elif args.off:
+        cavi_capture.lights(False)
     else:
       cavi_capture.start()
 
