@@ -127,10 +127,10 @@ class CaviCapture:
       top_rel_image_height = self.crop[2]
       left_rel_image_width = self.crop[3]
 
-      start_x = left_rel_image_width * img_width
-      end_x = start_x + (width_rel_image_width * img_width)
-      start_y = top_rel_image_height * img_height
-      end_y = start_y + (height_rel_image_height * img_height)
+      start_x = int(left_rel_image_width * img_width)
+      end_x = int(start_x + (width_rel_image_width * img_width))
+      start_y = int(top_rel_image_height * img_height)
+      end_y = int(start_y + (height_rel_image_height * img_height))
 
       cv2.imwrite(self.sequence_path + output_filename, capture[start_y:end_y, start_x:end_x])
 
