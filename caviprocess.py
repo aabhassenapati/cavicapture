@@ -14,6 +14,8 @@ def main():
     force_reprocess = False
     roi_areas_only = False
     config_path = ""
+  
+
     
     try:
         opts, args = getopt.getopt(sys.argv[1:], "c:r", ["config=", "reprocess", "roiareas"])

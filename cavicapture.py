@@ -13,6 +13,7 @@ import subprocess
 def main():
     generate_preview = False
     config_path = ""
+    print(f"Received config path: {config_path}")
     
     try:
         opts, args = getopt.getopt(sys.argv[1:], "c:p", ["config=", "preview"])
