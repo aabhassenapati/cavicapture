@@ -14,7 +14,7 @@ def main():
     force_reprocess = False
     roi_areas_only = False
     config_path = ""
-    print(f"Received config path: {config_path}")
+  
 
     
     try:
