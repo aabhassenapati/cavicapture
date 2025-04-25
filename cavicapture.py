@@ -115,7 +115,7 @@ class CaviCapture:
 
     def setup_gpio(self):
         GPIO.setwarnings(False)
-        GPIO.setmode(GPIO.BOARD)
+        GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.pi_GPIO_light_channel, GPIO.OUT)
 
     def create_directories(self):
